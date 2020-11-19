@@ -509,7 +509,8 @@ void hrtick_start(struct rq *rq, u64 delay)
 	 * doesn't make sense and can cause timer DoS.
 	 */
 	delta = max_t(s64, delay, 10000LL);
-	time = ktime_add_ns(timer->base->get_time(), delta);
+	time = ktime_add_ns(!timekeeping_suspended ? 
+				timer->base->get_time() : ktime_get_boot_fast_ns(), delta);
 
 	hrtimer_set_expires(timer, time);
 
@@ -576,7 +577,7 @@ static void init_rq_hrtick(struct rq *rq)
 	rq->hrtick_csd.info = rq;
 #endif
 
-	hrtimer_init(&rq->hrtick_timer, CLOCK_MONOTONIC, HRTIMER_MODE_REL);
+	hrtimer_init(&rq->hrtick_timer, CLOCK_BOOTTIME, HRTIMER_MODE_REL);
 	rq->hrtick_timer.function = hrtick;
 }
 #else	/* CONFIG_SCHED_HRTICK */
