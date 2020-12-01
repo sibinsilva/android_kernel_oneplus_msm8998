@@ -39,19 +39,43 @@ struct q6audio_effects {
 	struct msm_nt_eff_all_config audio_effects;
 };
 
+static void msm_audio_effects_apply_extn(struct q6audio_effects *effects)
+{
+	struct msm_nt_eff_all_config *msm_effects = &effects->audio_effects;
+	struct audio_client *ac = effects->ac;
+	int ret = 0;
+
+	/* Bass boost */
+	msm_effects->bass_boost.enable_flag = true;
+	msm_effects->bass_boost.mode = 2;
+	msm_effects->bass_boost.strength = 75;
+
+	/* Virtualizer */
+	msm_effects->virtualizer.enable_flag = true;
+	msm_effects->virtualizer.out_type = 4;
+	msm_effects->virtualizer.strength = 50;
+	msm_effects->virtualizer.gain_adjust = 5;
+
+	ret = msm_audio_effects_enable_extn(ac, msm_effects, true);
+	if (ret < 0)
+		pr_err("%s: Send msm audio effects extn params failed ret=%d\n",
+			__func__, ret);
+}
+
 static void audio_effects_init_pp(struct audio_client *ac)
 {
-	int ret = 0;
 	struct asm_softvolume_params softvol = {
 		.period = SOFT_VOLUME_PERIOD,
 		.step = SOFT_VOLUME_STEP,
 		.rampingcurve = SOFT_VOLUME_CURVE_LINEAR,
 	};
+	int ret = 0;
 
 	if (!ac) {
 		pr_err("%s: audio client null to init pp\n", __func__);
 		return;
 	}
+
 	ret = q6asm_set_softvolume_v2(ac, &softvol,
 				      SOFT_VOLUME_INSTANCE_1);
 	if (ret < 0)
@@ -194,6 +218,9 @@ static int audio_effects_shared_ioctl(struct file *file, unsigned cmd,
 
 		audio_effects_init_pp(effects->ac);
 
+		/* Overwrite effect values */
+		msm_audio_effects_apply_extn(effects);
+
 		rc = q6asm_run(effects->ac, 0x00, 0x00, 0x00);
 		if (!rc)
 			effects->started = 1;
@@ -250,6 +277,8 @@ static int audio_effects_shared_ioctl(struct file *file, unsigned cmd,
 				mutex_unlock(&effects->lock);
 				goto ioctl_fail;
 			}
+			/* Overwrite effect values */
+			msm_audio_effects_apply_extn(effects);
 			atomic_dec(&effects->out_count);
 		} else {
 			pr_err("%s: AUDIO_EFFECTS_WRITE: Buffer dropped\n",
